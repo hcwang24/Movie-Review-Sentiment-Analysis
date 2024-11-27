@@ -91,68 +91,53 @@ app = dash.Dash(__name__)
 app.layout = dbc.Container([
     html.H1("Movie Review Sentiment Analysis", style={'textAlign': 'center', 'padding': '10px'}),
     
-    # Top Section: Input Text and SpaCy Visualization
+    # Input Section
     dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader("Input Text"),
-                dbc.CardBody([
-                    dcc.Textarea(
+        dbc.Card([
+            dbc.CardBody([
+                dcc.Textarea(
                         id='input-text',
                         placeholder='Enter movie review text or generate a random review...',
                         value=get_random_review(demo_texts),  # Load a random sample text initially
-                        style={'width': '100%', 'height': '150px'}
-                    ),
-                    html.Div([
-                        html.Button('Analyze Sentiment', id='submit-val', n_clicks=0, style={
-                            'background-color': '#008CBA', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px',
-                            'margin-right': '10px', 'margin-top': '10px'
-                        }),
-                        html.Button('Generate Random Review', id='generate-review', n_clicks=0, style={
-                            'background-color': '#f44336', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px',
-                            'margin-top': '10px'
-                        })
-                    ], style={'textAlign': 'center'})
+                        style={'width': '80%', 'height': '200px'}
+                ),
+                html.Div([
+                    html.Button('Analyze Sentiment', id='submit-val', n_clicks=0, style={
+                        'background-color': '#008CBA', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px',
+                        'margin-right': '10px'
+                    }),
+                    html.Button('Generate Random Review', id='generate-review', n_clicks=0, style={
+                        'background-color': '#f44336', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px'
+                    })
                 ])
             ])
-        ], width=6),
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader("Text Analysis Visualization"),
-                dbc.CardBody([
-                    dcc.Markdown(id='spacy-output', dangerously_allow_html=True)
-                ])
-            ])
-        ], width=6),
-    ], justify="center", style={'margin-bottom': '20px'}),
+        ])
+    ]),
     
-    # Bottom Section: Sentiment Graph and SHAP Plot
     dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader("Sentiment Graph"),
-                dbc.CardBody([
-                    dcc.Graph(id='output-sentiment-graph', style={"width": "100%"})
+        dbc.Card([
+            dbc.CardBody([
+                dbc.Col([
+                    html.Label('Select the number of top SHAP words to display:'),
+                    dcc.Input(id='n-shap-input', type='number', value=20, min=1, style={'margin-top': '40px', 'margin-left': '10px', 'margin-right': '10px'})
+                ], width=6),
+                dbc.Row([
+                    dcc.Graph(id='output-sentiment-graph', style={"display": "inline-block", "width": "30%"}),
+                    dcc.Graph(id='shap-plot', style={"display": "inline-block", "width": "60%"}),
                 ])
             ])
-        ], width=6),
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader("SHAP Plot"),
-                dbc.CardBody([
-                    html.Label('Select the number of top SHAP words to display:', style={'margin-bottom': '10px'}),
-                    dcc.Input(
-                        id='n-shap-input',
-                        type='number',
-                        value=20,
-                        min=1,
-                        style={'margin-bottom': '20px', 'width': '100%'}
-                    ),
-                    dcc.Graph(id='shap-plot', style={"width": "100%"})
-                ])
+        ])
+    ]),
+    
+    # Output Section: SpaCy Visualization
+    dbc.Row([
+        dbc.Card([
+            dbc.CardBody([
+                html.H4("Text Analysis Visualization", style={'textAlign': 'center'}),
+                dcc.Markdown(id='spacy-output', dangerously_allow_html=True),
             ])
-        ], width=6),
-    ], justify="center"),
+        ], style={'width': '80%', 'margin': '10px auto'})
+    ], justify='center'),
 
     # Footer
     html.Footer("Developed by HanChen Wang, October 2024", style={'textAlign': 'center', 'padding': '10px'})
