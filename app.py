@@ -13,8 +13,6 @@ from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 import plotly.graph_objs as go
 import shap  # Import SHAP
-from IPython.display import display, HTML
-from dash_dangerously_set_inner_html import DangerouslySetInnerHTML
 from matplotlib import colors
 import matplotlib as plt
 
