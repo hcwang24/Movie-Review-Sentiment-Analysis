@@ -95,25 +95,32 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Card([
             dbc.CardBody([
-                dcc.Textarea(
-                        id='input-text',
-                        placeholder='Enter movie review text or generate a random review...',
-                        value=get_random_review(demo_texts),  # Load a random sample text initially
-                        style={'width': '80%', 'height': '200px'}
-                ),
-                html.Div([
-                    html.Button('Analyze Sentiment', id='submit-val', n_clicks=0, style={
-                        'background-color': '#008CBA', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px',
-                        'margin-right': '10px'
-                    }),
-                    html.Button('Generate Random Review', id='generate-review', n_clicks=0, style={
-                        'background-color': '#f44336', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px'
-                    })
+                dbc.Row([
+                    # Textarea Input Section
+                    dbc.Col([
+                        dcc.Textarea(
+                            id='input-text',
+                            placeholder='Enter movie review text or generate a random review...',
+                            value=get_random_review(demo_texts),  # Load a random sample text initially
+                            style={'width': '100%', 'height': '100px'}
+                        ),
+                    ]),
+                    dbc.Col([
+                        html.Div([
+                            html.Button('Analyze Sentiment', id='submit-val', n_clicks=0, style={
+                                'background-color': '#008CBA', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px',
+                                'margin-right': '10px'
+                            }),
+                            html.Button('Generate Random Review', id='generate-review', n_clicks=0, style={
+                                'background-color': '#f44336', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px'
+                            })
+                        ], style={'margin-top': '5px'})
+                    ]),
                 ])
             ])
-        ])
+        ], style={'margin-top': '10px'})
     ]),
-    
+
     dbc.Row([
         dbc.Card([
             dbc.CardBody([
@@ -128,17 +135,24 @@ app.layout = dbc.Container([
             ])
         ])
     ]),
-    
+        
     # Output Section: SpaCy Visualization
     dbc.Row([
         dbc.Card([
             dbc.CardBody([
-                html.H4("Text Analysis Visualization", style={'textAlign': 'center'}),
-                dcc.Markdown(id='spacy-output', dangerously_allow_html=True),
+                    # Visualization Section
+                    dbc.Col([
+                        html.H4("Text Analysis Visualization", style={'textAlign': 'center', 'margin-bottom': '10px'}),
+                        dcc.Markdown(
+                            id='spacy-output', 
+                            dangerously_allow_html=True,
+                            style={'width': '100%', 'height': '200px', 'border': '1px solid #ccc', 'padding': '10px'}
+                        ),
+                    ], width=5),
             ])
         ], style={'width': '80%', 'margin': '10px auto'})
     ], justify='center'),
-
+    
     # Footer
     html.Footer("Developed by HanChen Wang, October 2024", style={'textAlign': 'center', 'padding': '10px'})
 ], fluid=True, style={
