@@ -243,17 +243,26 @@ def generate_spacy_visualization(input_text, shap_values_df, top_n_shap_values_d
                 label = f"{'POS' if shap_value > 0 else 'NEG'} ({shap_value:.2f})"
                 entities.append({"start": start, "end": end, "label": label})
     
-    # Resolve adjacent entities by introducing a small gap
+    # Modify the input text to add underscores between adjacent entities
+    modified_text = input_text
+    offset = 0  # Tracks the shift in indices due to added underscores
+    for i in range(len(entities) - 1):
+        current_end = entities[i]["end"] + offset
+        next_start = entities[i + 1]["start"] + offset
+        # If entities are adjacent, insert an underscore
+        if current_end + 1 == next_start:
+            modified_text = modified_text[:current_end] + "_" + modified_text[current_end:]
+            offset += 1  # Increment offset due to the added character
+    
+    # Update entity indices to match the modified text
     adjusted_entities = []
-    previous_end = -1
     for entity in entities:
-        if entity["start"] <= previous_end + 1:
-            entity["start"] = previous_end + 2
-        adjusted_entities.append(entity)
-        previous_end = entity["end"]
-
+        start = entity["start"] + modified_text[:entity["start"]].count("_")
+        end = entity["end"] + modified_text[:entity["end"]].count("_")
+        adjusted_entities.append({"start": start, "end": end, "label": entity["label"]})
+    
     # Create SpaCy-compatible data structure
-    spacy_data = {"text": input_text, "ents": adjusted_entities, "title": "SHAP Highlighting"}
+    spacy_data = {"text": modified_text, "ents": adjusted_entities, "title": "SHAP Highlighting"}
     options = {"colors": color_options}
     return displacy.render(spacy_data, style="ent", manual=True, options=options), color_options
 
