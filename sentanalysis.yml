@@ -6,6 +6,7 @@ channels:
   - defaults
   - pytorch
 dependencies:
+  - scikit-learn==1.2.2
   - python
   - ipykernel
   - ipywidgets
@@ -13,7 +14,6 @@ dependencies:
   - matplotlib
   - plotly
   - jupyter-dash
-  - scikit-learn
   - torchvision
   - torchaudio
   - pytorch
