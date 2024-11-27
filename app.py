@@ -172,112 +172,133 @@ def update_review(n_clicks):
         return get_random_review(demo_texts)
     return ''
 
-# Function to generate SHAP values and plot using Plotly
-def generate_shap_plotly(text_vector, model, n=20):
-    # Create a SHAP explainer
+def compute_shap_values(model, text_vector, vectorizer, word_mapping, top_n=20):
+    """
+    Computes SHAP values for the given model and text vector, filters and identifies the top N words.
+
+    Parameters:
+        model: The trained model for which SHAP values are computed.
+        text_vector: The vectorized representation of the input text.
+        vectorizer: The vectorizer used to create the text vector.
+        word_mapping: A list of tuples mapping original to processed words.
+        top_n: The number of top SHAP values to retain.
+
+    Returns:
+        pd.DataFrame: A DataFrame of the top N words with their SHAP values.
+    """
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(text_vector)
-    shap_values_dict = {}
-    shap_values_dict['XGBoost'] = shap_values[0]
+    shap_values_dict = {"SHAP": shap_values[0]}
     shap_values_df = pd.DataFrame(shap_values_dict, index=vectorizer.get_feature_names_out())
+
+    processed_words = {processed for _, processed in word_mapping}
+    filtered_shap_values_df = shap_values_df.loc[shap_values_df.index.isin(processed_words)]
+    filtered_shap_values_df = filtered_shap_values_df.loc[filtered_shap_values_df['SHAP'].abs() >= 0.01]
+    top_n_shap_values_df = filtered_shap_values_df.loc[filtered_shap_values_df['SHAP'].abs().nlargest(top_n).index]
+    top_n = top_n_shap_values_df.shape[0]
+    return shap_values_df, top_n_shap_values_df.sort_values(by="SHAP"), top_n
+
+def generate_spacy_visualization(input_text, shap_values_df, top_n_shap_values_df, word_mapping):
+    """
+    Generates a SpaCy visualization for SHAP values highlighting.
+
+    Parameters:
+        input_text: The original input text.
+        shap_values_df: The DataFrame containing SHAP values.
+        top_n_shap_values_df: The DataFrame of top N SHAP values.
+        word_mapping: A list of tuples mapping original to processed words.
+
+    Returns:
+        None: Renders the SpaCy visualization in the notebook.
+    """
+    reverse_mapping = {original: processed for original, processed in word_mapping}
+
+    # Tokenize and calculate word positions
+    original_words = word_tokenize(input_text)
+    word_positions = []
+    current_position = 0
+    for word in original_words:
+        start_idx = input_text.find(word, current_position)
+        end_idx = start_idx + len(word)
+        word_positions.append((word, start_idx, end_idx))
+        current_position = end_idx
+
+    # Separate positive and negative SHAP values
+    positive_shap_values = [shap_values_df['SHAP'][word] for word in top_n_shap_values_df.index if shap_values_df['SHAP'][word] > 0.01]
+    negative_shap_values = [shap_values_df['SHAP'][word] for word in top_n_shap_values_df.index if shap_values_df['SHAP'][word] < -0.01]
+
+    pos_norm = colors.Normalize(vmin=0, vmax=1)
+    neg_norm = colors.Normalize(vmin=-1, vmax=0)
+    positive_colors = {f"POS ({shap:.2f})": colors.to_hex(plt.cm.Reds(pos_norm(shap))) for shap in positive_shap_values}
+    negative_colors = {f"NEG ({shap:.2f})": colors.to_hex(plt.cm.Blues(1 - abs(neg_norm(shap)))) for shap in negative_shap_values}
+    color_options = {**positive_colors, **negative_colors}
+
+    # Prepare entities for visualization
+    entities = []
+    for word, start, end in word_positions:
+        processed_word = reverse_mapping.get(word, None)
+        if processed_word in shap_values_df.index:
+            shap_value = shap_values_df['SHAP'][processed_word]
+            if abs(shap_value) >= 0.01:
+                label = f"{'POS' if shap_value > 0 else 'NEG'} ({shap_value:.2f})"
+                entities.append({"start": start, "end": end, "label": label})
     
-    top_n_shap_values_df = shap_values_df.loc[shap_values_df['XGBoost'].abs().nlargest(n).index]
-    top_n_shap_values_df = top_n_shap_values_df.sort_values(by="XGBoost")
+    # Resolve adjacent entities by introducing a small gap
+    adjusted_entities = []
+    previous_end = -1
+    for entity in entities:
+        if entity["start"] <= previous_end + 1:
+            entity["start"] = previous_end + 2
+        adjusted_entities.append(entity)
+        previous_end = entity["end"]
 
-    fig = go.Figure()
+    # Create SpaCy-compatible data structure
+    spacy_data = {"text": input_text, "ents": adjusted_entities, "title": "SHAP Highlighting"}
+    options = {"colors": color_options}
+    return displacy.render(spacy_data, style="ent", manual=True, options=options), color_options
 
-    # Add horizontal bars for the top 20 words based on XGBoost SHAP values
-    fig.add_trace(go.Bar(
-        x=top_n_shap_values_df['XGBoost'],  # SHAP values on x-axis
+def plot_shap_bar_chart(top_n_shap_values_df, top_n, color_options):
+    """
+    Plots a horizontal bar chart of the top N words based on SHAP values, using specified colors for the bars.
+
+    Parameters:
+        top_n_shap_values_df: The DataFrame of top N SHAP values with words as the index.
+        top_n: The number of top SHAP values being visualized.
+        color_options: A dictionary mapping SHAP value labels to their respective colors.
+
+    Returns:
+        None: Displays the bar chart.
+    """
+    # Assign colors to bars based on SHAP value labels
+    bar_colors = [
+        color_options[f"{'POS' if shap > 0 else 'NEG'} ({shap:.2f})"]
+        for shap in top_n_shap_values_df['SHAP']
+    ]
+
+    # Create the horizontal bar chart
+    shap_fig = go.Figure()
+    shap_fig.add_trace(go.Bar(
+        x=top_n_shap_values_df['SHAP'],  # SHAP values on x-axis
         y=top_n_shap_values_df.index,       # Words on y-axis
-        orientation='h',                     # Horizontal bar
-        marker=dict(color='orange'),
+        orientation='h',                    # Horizontal bars
+        marker=dict(color=bar_colors),      # Bar colors
         name='XGBoost SHAP Values',
         hovertemplate=(
             '<b>%{y}</b><br>' +  # Hover label for word
-            'XGBoost SHAP: %{x:.4f}<br>'
+            'XGBoost SHAP: %{x:.2f}<br>'
         )
     ))
 
     # Update layout with title and axis labels
-    fig.update_layout(
-        title=f"Top {n} Words with Highest SHAP Values (XGBoost)",
+    shap_fig.update_layout(
+        title=f"Top {top_n} Words with Highest SHAP Values (XGBoost)",
         xaxis_title="XGBoost SHAP Value",  # SHAP values on the x-axis
         yaxis_title="Word",                # Words on the y-axis
         template="plotly_white",
         hoverlabel=dict(bgcolor=None),
         showlegend=False
     )
-
-    return fig, shap_values_df['XGBoost']
-
-def tag_original_text_with_shap(original_text, shap_values, word_mapping, top_n=20):
-    """
-    Tags the original text based on SHAP values using SpaCy visualizer.
-    
-    Arguments:
-    original_text -- the original text string
-    shap_values -- SHAP values corresponding to the words in the processed text
-    word_mapping -- a list of tuples (original_word, processed_word) that maps original words to processed words
-    top_n -- the number of top words based on SHAP values to tag
-    
-    Returns:
-    HTML visualization with SpaCy displaCy
-    """
-    # Tokenize the original text
-    original_words = word_tokenize(original_text)
-
-    # Create a dictionary for processed words to SHAP values
-    processed_to_shap = {processed: shap_values.get(processed, 0.0) for _, processed in word_mapping}
-
-    # Reverse mapping to match original to processed words
-    reverse_mapping = {original: processed for original, processed in word_mapping}
-
-    # Get the top N processed words by absolute SHAP value
-    top_processed_words = sorted(processed_to_shap.keys(), key=lambda word: abs(processed_to_shap[word]), reverse=True)[:top_n]
-
-    # Separate positive and negative SHAP values
-    positive_shap_values = [processed_to_shap[processed_word] for processed_word in top_processed_words if processed_to_shap[processed_word] > 0.01]
-    negative_shap_values = [processed_to_shap[processed_word] for processed_word in top_processed_words if processed_to_shap[processed_word] < -0.01]
-
-    # Normalize SHAP values for color scaling
-    pos_norm = colors.Normalize(vmin=0, vmax=1)
-    neg_norm = colors.Normalize(vmin=-1, vmax=0)
-
-    # Generate colors for positive and negative values
-    positive_colors = {f"POS ({shap:.2f})": colors.to_hex(plt.cm.Reds(pos_norm(shap))) for shap in positive_shap_values}
-    negative_colors = {f"NEG ({shap:.2f})": colors.to_hex(plt.cm.Blues(1-abs(neg_norm(shap)))) for shap in negative_shap_values}
-
-    # Combine colors into options
-    color_options = {**positive_colors, **negative_colors}
-
-    # Prepare entities for SpaCy visualization
-    entities = []
-    for word in original_words:
-        processed_word = reverse_mapping.get(word, None)
-        if processed_word in top_processed_words:
-            shap_value = processed_to_shap[processed_word]
-            if abs(shap_value) >= 0.01:
-                label = f"{'POS' if shap_value > 0 else 'NEG'} ({shap_value:.2f})"
-                start = original_text.find(word)
-                end = start + len(word)
-                entities.append({
-                    "start": start,
-                    "end": end,
-                    "label": label,
-                })
-
-    # Create a SpaCy-compatible dictionary for rendering
-    spacy_data = {
-        "text": original_text,
-        "ents": entities,
-        "title": "SHAP Highlighting"
-    }
-    
-    options = {"colors": color_options}
-
-    # Use SpaCy's displacy.render to generate the HTML
-    return displacy.render(spacy_data, style="ent", manual=True, options=options)
+    return shap_fig
 
 # Callback function to process text, predict sentiment, and display SHAP explanations
 @app.callback(
@@ -315,12 +336,13 @@ def predict_sentiment(n_clicks, top_n, input_text):
             paper_bgcolor='rgba(0,0,0,0)',
             font={'size': 16},
         )
-
-        # Generate SHAP values plot using Plotly
-        shap_fig, shap_values = generate_shap_plotly(text_vector, xgboost, n=top_n)
+        
+        shap_values_df, top_n_shap_values_df, top_n = compute_shap_values(xgboost, text_vector, vectorizer, word_mapping, top_n=top_n)
         
         # Tag words indicating the SHAP values
-        tagged_html = tag_original_text_with_shap(input_text, shap_values, word_mapping, top_n)
+        tagged_html, color_options = generate_spacy_visualization(input_text, shap_values_df, top_n_shap_values_df, word_mapping)
+        
+        shap_fig = plot_shap_bar_chart(top_n_shap_values_df, top_n, color_options)
 
         # Return both sentiment plot and SHAP plot
         return sentiment_fig, shap_fig, tagged_html
