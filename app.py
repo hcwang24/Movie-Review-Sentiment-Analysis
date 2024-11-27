@@ -87,74 +87,94 @@ app = dash.Dash(__name__)
 
 # Layout of the dashboard
 app.layout = dbc.Container([
-    html.H1("Movie Review Sentiment Analysis", style={'textAlign': 'center', 'padding': '10px'}),
+    dbc.Row(
+        html.H1(
+            "Movie Review Sentiment Analysis",
+            style={
+                'textAlign': 'center',
+                'backgroundColor': 'white',
+                'width': '100%',
+            }
+        )
+    ),
     
     # Input Section
     dbc.Row([
         dbc.Card([
+            dbc.CardHeader(
+                html.H3(
+                    "Input Text"),
+                style={'font-size': '16px'}
+            ),
             dbc.CardBody([
+                dbc.Row(
+                    dcc.Textarea(
+                        id='input-text',
+                        placeholder='Enter movie review text or generate a random review...',
+                        value=get_random_review(demo_texts),
+                        style={'width': '100%', 'height': '100px'}
+                    ),
+                ),
                 dbc.Row([
-                    # Textarea Input Section
-                    dbc.Col([
-                        dcc.Textarea(
-                            id='input-text',
-                            placeholder='Enter movie review text or generate a random review...',
-                            value=get_random_review(demo_texts),  # Load a random sample text initially
-                            style={'width': '100%', 'height': '100px'}
-                        ),
-                    ]),
-                    dbc.Col([
-                        html.Div([
-                            html.Button('Analyze Sentiment', id='submit-val', n_clicks=0, style={
-                                'background-color': '#008CBA', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px',
-                                'margin-right': '10px'
-                            }),
-                            html.Button('Generate Random Review', id='generate-review', n_clicks=0, style={
-                                'background-color': '#f44336', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px'
-                            })
-                        ], style={'margin-top': '5px'})
-                    ]),
-                ])
+                    html.Div([
+                        html.Button('Analyze Sentiment', id='submit-val', n_clicks=0, style={
+                            'background-color': '#008CBA', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px', 'margin-right': '10px'
+                        }),
+                        html.Button('Generate Random Review', id='generate-review', n_clicks=0, style={
+                            'background-color': '#f44336', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px', 'margin-right': '10px'
+                        }),
+                        html.Label('Select the number of top SHAP words to display:', style={'margin-left': '10px', 'margin-right': '10px'}),
+                        dcc.Input(id='n-shap-input', type='number', value=10, min=1)
+                    ])
+                ]),
             ])
-        ], style={'margin-top': '10px'})
+        ],
+        color="rgba(255,255,255,0.5)"
+        )
     ]),
 
+    # Analysis Section
     dbc.Row([
         dbc.Card([
+            dbc.CardHeader(
+                html.H3("Text Analysis"), style={'font-size': '16px'}
+            ),
             dbc.CardBody([
-                dbc.Col([
-                    html.Label('Select the number of top SHAP words to display:'),
-                    dcc.Input(id='n-shap-input', type='number', value=20, min=1, style={'margin-top': '40px', 'margin-left': '10px', 'margin-right': '10px'})
-                ], width=6),
+                dbc.Row([
+                    html.H4("Text tagged with Sentiment values"),
+                    dcc.Markdown(
+                        id='spacy-output', 
+                        dangerously_allow_html=True,
+                        style={'border': '1px solid #ccc',}
+                    ),
+                ], style={'height': '30%'}),
                 dbc.Row([
                     dcc.Graph(id='output-sentiment-graph', style={"display": "inline-block", "width": "30%"}),
                     dcc.Graph(id='shap-plot', style={"display": "inline-block", "width": "60%"}),
-                ])
+                ]),
             ])
-        ])
+        ],
+        color="rgba(255,255,255,0.9)"
+        )
     ]),
-        
-    # Output Section: SpaCy Visualization
-    dbc.Row([
-        dbc.Card([
-            dbc.CardBody([
-                    # Visualization Section
-                    dbc.Col([
-                        html.H4("Text Analysis Visualization", style={'textAlign': 'center', 'margin-bottom': '10px'}),
-                        dcc.Markdown(
-                            id='spacy-output', 
-                            dangerously_allow_html=True,
-                            style={'width': '100%', 'height': '200px', 'border': '1px solid #ccc', 'padding': '10px'}
-                        ),
-                    ], width=5),
-            ])
-        ], style={'width': '80%', 'margin': '10px auto'})
-    ], justify='center'),
     
     # Footer
-    html.Footer("Developed by HanChen Wang, October 2024", style={'textAlign': 'center', 'padding': '10px'})
+    dbc.Row(
+        html.Footer(
+            "Developed by HanChen Wang, November 2024",
+            style={
+                'textAlign': 'center',
+                'padding': '10px',
+                'backgroundColor': 'white',
+                'borderTop': '1px solid #ccc',
+                'width': '100%',
+                'bottom': '0',
+                'left': '0',
+            }
+        )
+    ),
 ], fluid=True, style={
-    'background-image': 'url("/assets/work.jpg")',  # Adjusted to reference assets folder
+    'background-image': 'url("/assets/popcorn.jpg")',
     'background-size': 'cover',
     'background-repeat': 'no-repeat',
     'background-attachment': 'fixed',
@@ -245,14 +265,13 @@ def generate_spacy_visualization(input_text, shap_values_df, top_n_shap_values_d
     
     # Modify the input text to add underscores between adjacent entities
     modified_text = input_text
-    offset = 0  # Tracks the shift in indices due to added underscores
+    offset = 0
     for i in range(len(entities) - 1):
         current_end = entities[i]["end"] + offset
         next_start = entities[i + 1]["start"] + offset
-        # If entities are adjacent, insert an underscore
         if current_end + 1 == next_start:
             modified_text = modified_text[:current_end] + "_" + modified_text[current_end:]
-            offset += 1  # Increment offset due to the added character
+            offset += 1
     
     # Update entity indices to match the modified text
     adjusted_entities = []
@@ -262,7 +281,7 @@ def generate_spacy_visualization(input_text, shap_values_df, top_n_shap_values_d
         adjusted_entities.append({"start": start, "end": end, "label": entity["label"]})
     
     # Create SpaCy-compatible data structure
-    spacy_data = {"text": modified_text, "ents": adjusted_entities, "title": "SHAP Highlighting"}
+    spacy_data = {"text": modified_text, "ents": adjusted_entities}
     options = {"colors": color_options}
     return displacy.render(spacy_data, style="ent", manual=True, options=options), color_options
 
@@ -287,25 +306,26 @@ def plot_shap_bar_chart(top_n_shap_values_df, top_n, color_options):
     # Create the horizontal bar chart
     shap_fig = go.Figure()
     shap_fig.add_trace(go.Bar(
-        x=top_n_shap_values_df['SHAP'],  # SHAP values on x-axis
-        y=top_n_shap_values_df.index,       # Words on y-axis
-        orientation='h',                    # Horizontal bars
-        marker=dict(color=bar_colors),      # Bar colors
-        name='XGBoost SHAP Values',
+        x=top_n_shap_values_df['SHAP'],
+        y=top_n_shap_values_df.index,
+        orientation='h',
+        marker=dict(color=bar_colors),
+        name='',
         hovertemplate=(
-            '<b>%{y}</b><br>' +  # Hover label for word
-            'XGBoost SHAP: %{x:.2f}<br>'
+            '<b>%{y}</b><br>' + 
+            'Sentiment Values: %{x:.2f}<br>'
         )
     ))
 
     # Update layout with title and axis labels
     shap_fig.update_layout(
-        title=f"Top {top_n} Words with Highest SHAP Values (XGBoost)",
-        xaxis_title="XGBoost SHAP Value",  # SHAP values on the x-axis
-        yaxis_title="Word",                # Words on the y-axis
+        title=f"Top {top_n} Words Directing Sentiment",
+        xaxis_title="Sentiment Direction",
+        yaxis_title="Word Stem",
         template="plotly_white",
         hoverlabel=dict(bgcolor=None),
-        showlegend=False
+        showlegend=False,
+        font=dict(color='black')
     )
     return shap_fig
 
@@ -337,13 +357,13 @@ def predict_sentiment(n_clicks, top_n, input_text):
         ])
         
         sentiment_fig.update_layout(
-            title='Sentiment Analysis Result',
+            title='Overall Sentiment',
             xaxis_title='Sentiment',
             yaxis_title='Confidence Level',
             yaxis_range=[0, 1],
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            font={'size': 16},
+            font=dict(color='black')
         )
         
         shap_values_df, top_n_shap_values_df, top_n = compute_shap_values(xgboost, text_vector, vectorizer, word_mapping, top_n=top_n)
