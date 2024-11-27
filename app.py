@@ -6,7 +6,6 @@ import joblib
 import zipfile
 import os
 import re
-import numpy as np
 import pandas as pd
 import random
 from nltk.tokenize import word_tokenize
@@ -16,7 +15,10 @@ import plotly.graph_objs as go
 import shap  # Import SHAP
 from IPython.display import display, HTML
 from dash_dangerously_set_inner_html import DangerouslySetInnerHTML
+from matplotlib import colors
+import matplotlib as plt
 
+from spacy import displacy
 
 # Define preprocessing function with word tracking
 def preprocess_with_tracking(text):
@@ -89,55 +91,68 @@ app = dash.Dash(__name__)
 app.layout = dbc.Container([
     html.H1("Movie Review Sentiment Analysis", style={'textAlign': 'center', 'padding': '10px'}),
     
-    # Input Section
+    # Top Section: Input Text and SpaCy Visualization
     dbc.Row([
-        dbc.Card([
-            dbc.CardBody([
-                dcc.Textarea(
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader("Input Text"),
+                dbc.CardBody([
+                    dcc.Textarea(
                         id='input-text',
                         placeholder='Enter movie review text or generate a random review...',
                         value=get_random_review(demo_texts),  # Load a random sample text initially
-                        style={'width': '80%', 'height': '200px'}
-                ),
-                html.Div([
-                    html.Button('Analyze Sentiment', id='submit-val', n_clicks=0, style={
-                        'background-color': '#008CBA', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px',
-                        'margin-right': '10px'
-                    }),
-                    html.Button('Generate Random Review', id='generate-review', n_clicks=0, style={
-                        'background-color': '#f44336', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px'
-                    })
+                        style={'width': '100%', 'height': '150px'}
+                    ),
+                    html.Div([
+                        html.Button('Analyze Sentiment', id='submit-val', n_clicks=0, style={
+                            'background-color': '#008CBA', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px',
+                            'margin-right': '10px', 'margin-top': '10px'
+                        }),
+                        html.Button('Generate Random Review', id='generate-review', n_clicks=0, style={
+                            'background-color': '#f44336', 'color': 'white', 'padding': '10px 24px', 'font-size': '16px',
+                            'margin-top': '10px'
+                        })
+                    ], style={'textAlign': 'center'})
                 ])
             ])
-        ])
-    ]),
+        ], width=6),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader("Text Analysis Visualization"),
+                dbc.CardBody([
+                    dcc.Markdown(id='spacy-output', dangerously_allow_html=True)
+                ])
+            ])
+        ], width=6),
+    ], justify="center", style={'margin-bottom': '20px'}),
     
-    # html.Div([dash_dangerously_set_inner_html.DangerouslySetInnerHTML(html.P(id='output-div'))]),
-    # # Output Section
-    # dbc.Row([
-    #     dbc.Card([
-    #         dbc.CardBody([
-    #             html.H4("Tagged Text Output", style={'textAlign': 'center'}),
-    #             DangerouslySetInnerHTML(id='tagged-output', children="")  # Placeholder for tagged text
-    #         ])
-    #     ], style={'width': '80%', 'margin': '20px auto'})
-    # ], justify='center'),
-    
+    # Bottom Section: Sentiment Graph and SHAP Plot
     dbc.Row([
-        dbc.Card([
-            dbc.CardBody([
-                dbc.Col([
-                    html.Label('Select the number of top SHAP words to display:'),
-                    dcc.Input(id='n-shap-input', type='number', value=20, min=1, style={'margin-top': '40px', 'margin-left': '10px', 'margin-right': '10px'})
-                ], width=6),
-                dbc.Row([
-                    dcc.Graph(id='output-sentiment-graph', style={"display": "inline-block", "width": "30%"}),
-                    dcc.Graph(id='shap-plot', style={"display": "inline-block", "width": "60%"}),
-                    dcc.Graph(id='text-graph'),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader("Sentiment Graph"),
+                dbc.CardBody([
+                    dcc.Graph(id='output-sentiment-graph', style={"width": "100%"})
                 ])
             ])
-        ])
-    ]),
+        ], width=6),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader("SHAP Plot"),
+                dbc.CardBody([
+                    html.Label('Select the number of top SHAP words to display:', style={'margin-bottom': '10px'}),
+                    dcc.Input(
+                        id='n-shap-input',
+                        type='number',
+                        value=20,
+                        min=1,
+                        style={'margin-bottom': '20px', 'width': '100%'}
+                    ),
+                    dcc.Graph(id='shap-plot', style={"width": "100%"})
+                ])
+            ])
+        ], width=6),
+    ], justify="center"),
 
     # Footer
     html.Footer("Developed by HanChen Wang, October 2024", style={'textAlign': 'center', 'padding': '10px'})
@@ -201,7 +216,7 @@ def generate_shap_plotly(text_vector, model, n=20):
 
 def tag_original_text_with_shap(original_text, shap_values, word_mapping, top_n=20):
     """
-    Tags the original text based on SHAP values.
+    Tags the original text based on SHAP values using SpaCy visualizer.
     
     Arguments:
     original_text -- the original text string
@@ -210,44 +225,66 @@ def tag_original_text_with_shap(original_text, shap_values, word_mapping, top_n=
     top_n -- the number of top words based on SHAP values to tag
     
     Returns:
-    HTML visualization with color-coded original text
+    HTML visualization with SpaCy displaCy
     """
-    # Split original text into words for processing
+    # Tokenize the original text
     original_words = word_tokenize(original_text)
-    
-    # Create a dictionary for processed words to SHAP values
-    processed_to_shap = {}
-    for _, processed in word_mapping:
-        try:
-            processed_to_shap[processed] = shap_values[processed]
-        except KeyError:
-            processed_to_shap[processed] = 0.0
-    
-    # Create a reverse mapping to find which processed words correspond to original words
-    reverse_mapping = {original: processed for original, processed in word_mapping}
-    
-    # Get the top 20 processed words based on their absolute SHAP values
-    top_processed_words = sorted(processed_to_shap.keys(), key=lambda word: abs(processed_to_shap[word]), reverse=True)[:top_n]
-    
-    tagged_text = []
-    for word in original_words:
-        if word in reverse_mapping.keys() and reverse_mapping[word] in top_processed_words:
-            shap_value = processed_to_shap.get(reverse_mapping[word], 0)
-            color = "green" if shap_value > 0 else "red"
-            intensity = min(0.3, abs(shap_value) * 10)  # Control color intensity
-            tagged_word = f'<span style="color:{color}; font-weight:bold; background-color:rgba(0,255,0,{intensity})">{word}</span>' if color == "green" else f'<span style="color:{color}; font-weight:bold; background-color:rgba(255,0,0,{intensity})">{word}</span>'
-            tagged_text.append(tagged_word)
-        else:
-            tagged_text.append(word)
-    
-    # Combine tagged words into a single string
-    tagged_sentence = ' '.join(tagged_text)
-    return tagged_sentence
 
+    # Create a dictionary for processed words to SHAP values
+    processed_to_shap = {processed: shap_values.get(processed, 0.0) for _, processed in word_mapping}
+
+    # Reverse mapping to match original to processed words
+    reverse_mapping = {original: processed for original, processed in word_mapping}
+
+    # Get the top N processed words by absolute SHAP value
+    top_processed_words = sorted(processed_to_shap.keys(), key=lambda word: abs(processed_to_shap[word]), reverse=True)[:top_n]
+
+    # Separate positive and negative SHAP values
+    positive_shap_values = [processed_to_shap[processed_word] for processed_word in top_processed_words if processed_to_shap[processed_word] > 0.01]
+    negative_shap_values = [processed_to_shap[processed_word] for processed_word in top_processed_words if processed_to_shap[processed_word] < -0.01]
+
+    # Normalize SHAP values for color scaling
+    pos_norm = colors.Normalize(vmin=0, vmax=1)
+    neg_norm = colors.Normalize(vmin=-1, vmax=0)
+
+    # Generate colors for positive and negative values
+    positive_colors = {f"POS ({shap:.2f})": colors.to_hex(plt.cm.Reds(pos_norm(shap))) for shap in positive_shap_values}
+    negative_colors = {f"NEG ({shap:.2f})": colors.to_hex(plt.cm.Blues(1-abs(neg_norm(shap)))) for shap in negative_shap_values}
+
+    # Combine colors into options
+    color_options = {**positive_colors, **negative_colors}
+
+    # Prepare entities for SpaCy visualization
+    entities = []
+    for word in original_words:
+        processed_word = reverse_mapping.get(word, None)
+        if processed_word in top_processed_words:
+            shap_value = processed_to_shap[processed_word]
+            if abs(shap_value) >= 0.01:
+                label = f"{'POS' if shap_value > 0 else 'NEG'} ({shap_value:.2f})"
+                start = original_text.find(word)
+                end = start + len(word)
+                entities.append({
+                    "start": start,
+                    "end": end,
+                    "label": label,
+                })
+
+    # Create a SpaCy-compatible dictionary for rendering
+    spacy_data = {
+        "text": original_text,
+        "ents": entities,
+        "title": "SHAP Highlighting"
+    }
+    
+    options = {"colors": color_options}
+
+    # Use SpaCy's displacy.render to generate the HTML
+    return displacy.render(spacy_data, style="ent", manual=True, options=options)
 
 # Callback function to process text, predict sentiment, and display SHAP explanations
 @app.callback(
-    [Output('output-sentiment-graph', 'figure'), Output('shap-plot', 'figure'), Output('text-graph', 'figure')],
+    [Output('output-sentiment-graph', 'figure'), Output('shap-plot', 'figure'), Output('spacy-output', 'children')],
     [Input('submit-val', 'n_clicks'), Input('n-shap-input', 'value')],
     [Input('input-text', 'value')]
 )
@@ -269,7 +306,7 @@ def predict_sentiment(n_clicks, top_n, input_text):
         # Create a Plotly bar plot for sentiment analysis result
         sentiment_fig = go.Figure(data=[
             go.Bar(name='Sentiment', x=['Negative', 'Positive'], y=[negative_confidence, positive_confidence],
-                   marker_color=['#f44336', '#008CBA'])
+                   marker_color=['#008CBA', '#f44336'])
         ])
         
         sentiment_fig.update_layout(
@@ -285,39 +322,13 @@ def predict_sentiment(n_clicks, top_n, input_text):
         # Generate SHAP values plot using Plotly
         shap_fig, shap_values = generate_shap_plotly(text_vector, xgboost, n=top_n)
         
-        # Tag input text with the SHAP values
-        tagged_text = tag_original_text_with_shap(input_text, shap_values, word_mapping, top_n)
-        
-        text_graph = go.Figure()
-
-        # Add the annotation with the tagged text
-        text_graph.add_annotation(
-            x=0.5, y=0.5,  # Coordinates to place the text in the center
-            text=tagged_text,  # HTML-like tagged text
-            showarrow=False,
-            font=dict(size=18),
-            align='center',
-            xref='paper', yref='paper',
-            bordercolor="black",  # Optional: Add a border if needed
-            borderwidth=1,
-            bgcolor="white",  # Set background color to white
-            width=700,  # Set a width to enable text wrapping
-            height=300,  # Optional: Set a height limit
-        )
-
-        # Update layout to make sure it renders properly
-        text_graph.update_layout(
-            xaxis=dict(showgrid=False, zeroline=False, visible=False),
-            yaxis=dict(showgrid=False, zeroline=False, visible=False),
-            margin=dict(l=20, r=20, t=20, b=20),
-            height=400,
-            paper_bgcolor="white",
-        )
+        # Tag words indicating the SHAP values
+        tagged_html = tag_original_text_with_shap(input_text, shap_values, word_mapping, top_n)
 
         # Return both sentiment plot and SHAP plot
-        return sentiment_fig, shap_fig, text_graph
+        return sentiment_fig, shap_fig, tagged_html
 
-    return {}, {}, {}
+    return {}, {}, "No analysis available."
 
 if __name__ == '__main__':
     app.run_server(debug=True)
