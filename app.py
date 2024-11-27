@@ -84,6 +84,8 @@ demo_texts = load_demo_text()
 # Dash app layout
 app = dash.Dash(__name__)
 
+server = app.server
+
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row(
@@ -321,7 +323,8 @@ def plot_shap_bar_chart(top_n_shap_values_df, top_n, color_options):
         title=f"Top {top_n} Words Driving Sentiment",
         xaxis_title="Sentiment Direction",
         yaxis_title="Word Stem",
-        template="plotly_white",
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
         hoverlabel=dict(bgcolor=None),
         showlegend=False,
         font=dict(color='black')
