@@ -318,7 +318,7 @@ def plot_shap_bar_chart(top_n_shap_values_df, top_n, color_options):
 
     # Update layout with title and axis labels
     shap_fig.update_layout(
-        title=f"Top {top_n} Words Directing Sentiment",
+        title=f"Top {top_n} Words Driving Sentiment",
         xaxis_title="Sentiment Direction",
         yaxis_title="Word Stem",
         template="plotly_white",
