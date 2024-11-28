@@ -53,7 +53,7 @@ def preprocess_with_tracking(text):
     return ' '.join(stemmed_tokens), word_mapping
 
 # Load the vectorizer and voting classifier from the zipped files
-vectorizer = joblib.load('models/Vectorizer.pkl')
+vectorizer = joblib.load('models/vectorizer.pkl')
 # voting_classifier = joblib.load('models/voting_classifier_model.pkl')
 
 # Load XGBoost model for SHAP explanations
