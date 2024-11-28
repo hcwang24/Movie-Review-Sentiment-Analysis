@@ -52,19 +52,12 @@ def preprocess_with_tracking(text):
     
     return ' '.join(stemmed_tokens), word_mapping
 
-# Function to unzip and load models
-def load_zipped_model(zip_file_path, model_filename):
-    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-        zip_ref.extractall('models')  # Extract files to the 'models' folder
-    model = joblib.load(os.path.join('models', model_filename))
-    return model
-
 # Load the vectorizer and voting classifier from the zipped files
-vectorizer = load_zipped_model('models/Vectorizer.zip', 'vectorizer.pkl')
-voting_classifier = load_zipped_model('models/voting_classifier_compressed.zip', 'voting_classifier_model.pkl')
+vectorizer = joblib.load('models/Vectorizer.pkl')
+# voting_classifier = joblib.load('models/voting_classifier_model.pkl')
 
 # Load XGBoost model for SHAP explanations
-xgboost = load_zipped_model('models/XGBoost.zip', 'XGBoost_model.pkl')
+xgboost = joblib.load('models/XGBoost_model.pkl')
 
 # Load the slang dictionary
 slang_dict = pd.read_csv("data/slang-dict.csv", index_col = 'keyword').to_dict()
@@ -347,7 +340,7 @@ def predict_sentiment(n_clicks, top_n, input_text):
         text_vector = vectorizer.transform([processed_text])
         
         # Predict sentiment using the VotingClassifier
-        proba = voting_classifier.predict_proba(text_vector)
+        proba = xgboost.predict_proba(text_vector)
         
         positive_confidence = proba[0][1]
         negative_confidence = proba[0][0]
